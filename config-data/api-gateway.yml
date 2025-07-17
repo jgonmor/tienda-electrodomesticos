@@ -1,0 +1,51 @@
+server:
+  port: 80
+  address: 0.0.0.0
+
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: appliance-service
+          uri: lb://appliance-service
+          predicates:
+            - Path=/appliances/**
+        - id: cart-service
+          uri: lb://cart-service
+          predicates:
+            - Path=/cart-service/**
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    config-url: /v3/api-docs/swagger-config
+    urls:
+      -   name: api-gateway
+          url: /v3/api-docs
+      -   name: appliance-service
+          url: http://192.168.56.1:8763/v3/api-docs
+      -   name: cart-service
+          url: http://192.168.56.1:8764/v3/api-docs
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL}
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
+    log-delta-diff: true
+  instance:
+    prefer-ip-address: true
+
+logging:
+  level:
+    com.netflix.eureka: DEBUG
+    com.netflix.discovery: DEBUG
+    org.springdoc: DEBUG
