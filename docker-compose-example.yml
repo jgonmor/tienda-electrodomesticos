@@ -1,0 +1,143 @@
+version: '2.1'
+
+services:
+  config-server:
+    build: config-server
+    mem_limit: 512m
+    environment:
+      GIT_PASS: [ GIT-ACCES-TOKEN ]
+      GIT_USER: [ GIT-USER ]
+      EUREKA_URL: http://discovery:8761/eureka/
+    ports:
+      - "8888:8888"
+    networks:
+      - appliance-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8888/actuator/health" ]
+      interval: 15s
+      timeout: 10s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+
+  discovery:
+    build: discovery
+    mem_limit: 512m
+    environment:
+      CONFIG_URL: http://config-server:8888
+      SPRING_CLOUD_CONFIG_FAIL_FAST: true
+      SPRING_CLOUD_CONFIG_RETRY_INITIAL_INTERVAL: 3000
+    ports:
+      - "8761:8761"
+    networks:
+      - appliance-network
+    depends_on:
+      config-server:
+        condition: service_healthy
+    restart: on-failure
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8761/actuator/health" ]
+      interval: 20s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+
+  api-gateway:
+    build: api-gateway
+    mem_limit: 512m
+    environment:
+      CONFIG_URL_DEV: http://config-server:8888
+      EUREKA_URL: http://discovery:8761/eureka/
+      SPRING_CLOUD_CONFIG_FAIL_FAST: true
+      SPRING_CLOUD_CONFIG_RETRY_INITIAL_INTERVAL: 3000
+    ports:
+      - "80:80"
+    networks:
+      - appliance-network
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery:
+        condition: service_healthy
+    restart: on-failure
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:80/actuator/health" ]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+  appliance-service:
+    build: appliance-service
+    mem_limit: 512m
+    environment:
+      CONFIG_URL_DEV: http://config-server:8888
+      EUREKA_URL: http://discovery:8761/eureka/
+      DB_USER: [ DB-USER ]
+      DB_PASS: [ DB-PASS ]
+      DB_URL: jdbc:mysql://host.docker.internal:3306/appliance_shop_db?serverTimezone=UTC
+      SPRING_CLOUD_CONFIG_PROFILE: default
+      SPRING_CLOUD_CONFIG_FAIL_FAST: true
+      SPRING_CLOUD_CONFIG_RETRY_INITIAL_INTERVAL: 3000
+      ALLOWED_ORIGINS: http://localhost:80
+    ports:
+      - "8763:8763"
+    networks:
+      - appliance-network
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery:
+        condition: service_healthy
+    restart: on-failure
+  cart-service:
+    build: cart-service
+    mem_limit: 512m
+    environment:
+      CONFIG_URL_DEV: http://config-server:8888
+      EUREKA_URL: http://discovery:8761/eureka/
+      DB_USER: [ DB-USER ]
+      DB_PASS: [ DB-PASS ]
+      DB_URL: jdbc:mysql://host.docker.internal:3306/appliance_shop_cart?serverTimezone=UTC
+      SPRING_CLOUD_CONFIG_PROFILE: default
+      SPRING_CLOUD_CONFIG_FAIL_FAST: true
+      SPRING_CLOUD_CONFIG_RETRY_INITIAL_INTERVAL: 3000
+      ALLOWED_ORIGINS: http://localhost:80
+      APPLIANCE_SERVICE_URL: http://api-gateway:80/appliance-service/appliances
+    ports:
+      - "8764:8764"
+    networks:
+      - appliance-network
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery:
+        condition: service_healthy
+    restart: on-failure
+  sell-service:
+    build: sell-service
+    mem_limit: 512m
+    environment:
+      CONFIG_URL_DEV: http://config-server:8888
+      EUREKA_URL: http://discovery:8761/eureka/
+      DB_USER: [ DB-USER ]
+      DB_PASS: [ DB-PASS ]
+      DB_URL: jdbc:mysql://host.docker.internal:3306/appliance_shop_sell?serverTimezone=UTC
+      SPRING_CLOUD_CONFIG_PROFILE: default
+      SPRING_CLOUD_CONFIG_FAIL_FAST: true
+      SPRING_CLOUD_CONFIG_RETRY_INITIAL_INTERVAL: 3000
+      ALLOWED_ORIGINS: http://localhost:80
+      APPLIANCE_SERVICE_URL: http://api-gateway:80/appliance-service/appliances
+      CART_SERVICE_URL: http://api-gateway:80/cart-service/cart
+    ports:
+      - "8765:8765"
+    networks:
+      - appliance-network
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery:
+        condition: service_healthy
+    restart: on-failure
+networks:
+  appliance-network:
+    driver: bridge
